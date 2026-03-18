@@ -45,7 +45,7 @@ def load_data(path: Path) -> pd.DataFrame:
     df["display_name"] = df["display_name"].astype(str)
     df["player_name"] = df["player_name"].astype(str)
 
-    # Exclude keeper (everywhere)
+    # Exclude keeper everywhere
     df = df[df["player_name"].str.strip() != EXCLUDE_PLAYER_FULLNAME].copy()
 
     return df.sort_values(["match_ts", "event_id", "display_name"]).reset_index(drop=True)
@@ -54,32 +54,26 @@ def load_data(path: Path) -> pd.DataFrame:
 def surname_from_fullname(full_name: str) -> str:
     """
     Dutch-friendly surname extraction:
-    keep last token + preceding lowercase tussenvoegsels (van/de/der/den/te/ter/ten/'t).
+    keeps last token + preceding lowercase tussenvoegsels (van/de/der/den/te/ter/ten/het/'t).
     Example: "Pepijn van de Merbel" -> "van de Merbel"
     """
     name = (full_name or "").strip()
     if not name:
         return ""
-
     parts = [p for p in name.split() if p.strip()]
     if len(parts) == 1:
         return parts[0]
 
-    prefixes = {
-        "van", "de", "der", "den", "te", "ter", "ten", "het", "'t", "v/d", "v.d.", "v/d.",
-    }
+    prefixes = {"van", "de", "der", "den", "te", "ter", "ten", "het", "'t", "v/d", "v.d.", "v/d."}
 
-    i = len(parts) - 1
-    j = i
+    j = len(parts) - 1
     while j - 1 >= 0:
         prev = parts[j - 1]
         prev_l = prev.lower()
-        # include typical lowercase tussenvoegsels
         if prev_l in prefixes or prev.islower():
             j -= 1
             continue
         break
-
     return " ".join(parts[j:])
 
 
@@ -96,7 +90,6 @@ def init_state(players_internal: List[str]) -> None:
     if "smooth_mode" not in st.session_state:
         st.session_state["smooth_mode"] = "Chunk average (fewer points)"
 
-    # selection stored by INTERNAL key = display_name (unique)
     if "player_selected" not in st.session_state:
         st.session_state["player_selected"] = {p: True for p in players_internal}
 
@@ -121,10 +114,14 @@ SmoothMode = Literal["Chunk average (fewer points)", "Rolling mean (same points)
 
 
 def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[pd.DataFrame, str, List[str]]:
+    """
+    Downsample per player_label: average each consecutive 'window' matches -> fewer x points.
+    """
     out = dff.copy()
     out["_metric_raw"] = pd.to_numeric(out[metric], errors="coerce")
-    out = out.sort_values(["display_name", "match_ts", "event_id"]).reset_index(drop=True)
-    out["_match_idx"] = out.groupby("display_name").cumcount()
+
+    out = out.sort_values(["player_label", "match_ts", "event_id"]).reset_index(drop=True)
+    out["_match_idx"] = out.groupby("player_label").cumcount()
     out["_chunk"] = (out["_match_idx"] // window).astype(int)
 
     def chunk_label(g: pd.DataFrame) -> str:
@@ -133,7 +130,7 @@ def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[p
         return last if first == last else f"{first} → {last}"
 
     agg = (
-        out.groupby(["display_name", "_chunk"], as_index=False)
+        out.groupby(["player_label", "_chunk"], as_index=False)
         .agg(
             chunk_end_ts=("match_ts", "max"),
             chunk_end_event=("event_id", "max"),
@@ -141,7 +138,7 @@ def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[p
             minutes_avg=("minutes_played", "mean"),
             metric_avg=("_metric_raw", "mean"),
         )
-        .sort_values(["chunk_end_ts", "chunk_end_event", "display_name"])
+        .sort_values(["chunk_end_ts", "chunk_end_event", "player_label"])
         .reset_index(drop=True)
     )
 
@@ -150,11 +147,15 @@ def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[p
 
 
 def smooth_rolling_mean(dff: pd.DataFrame, metric: str, window: int) -> Tuple[pd.DataFrame, str]:
+    """
+    Rolling mean per player_label: keeps same x points (1 per match).
+    min_periods=1 so early matches aren't dropped.
+    """
     out = dff.copy()
     out["_metric_raw"] = pd.to_numeric(out[metric], errors="coerce")
-    out = out.sort_values(["display_name", "match_ts", "event_id"])
+    out = out.sort_values(["player_label", "match_ts", "event_id"])
     out["_metric_roll"] = (
-        out.groupby("display_name")["_metric_raw"]
+        out.groupby("player_label")["_metric_raw"]
         .transform(lambda s: s.rolling(window=window, min_periods=1).mean())
     )
     return out, "_metric_roll"
@@ -181,11 +182,10 @@ def main() -> None:
 
     df = load_data(CSV_PATH)
     if df.empty:
-        st.error("CSV loaded but contains no rows (na filter op keeper).")
+        st.error("CSV loaded but contains no rows (na filter).")
         st.stop()
 
-    # Build mapping: internal player key -> surname label
-    # internal key must remain display_name (unique); UI label is surname (achternaam)
+    # Build internal list (display_name unique) and UI labels (surname)
     player_meta = (
         df[["display_name", "player_name"]]
         .dropna()
@@ -194,26 +194,21 @@ def main() -> None:
         .reset_index(drop=True)
     )
     player_meta["surname"] = player_meta["player_name"].map(surname_from_fullname)
+
+    # Disambiguate duplicate surnames with "(2)", "(3)" (no initials/numbers)
+    counts = player_meta["surname"].value_counts()
+    dup = set(counts[counts > 1].index.tolist())
+    labels: List[str] = []
+    seen: Dict[str, int] = {}
+    for s in player_meta["surname"].tolist():
+        if s in dup:
+            seen[s] = seen.get(s, 0) + 1
+            labels.append(f"{s} ({seen[s]})")
+        else:
+            labels.append(s)
+    player_meta["surname_label"] = labels
+
     internal_players = player_meta["display_name"].tolist()
-
-    # If duplicate surnames exist, keep them but disambiguate minimally (without initials/numbers)
-    # by appending a small suffix "(2)", "(3)" etc. Still no initials/rugnummers.
-    surname_counts = player_meta["surname"].value_counts()
-    duplicates = set(surname_counts[surname_counts > 1].index.tolist())
-    if duplicates:
-        # stable suffixing
-        new_labels = []
-        seen = {}
-        for s in player_meta["surname"].tolist():
-            if s in duplicates:
-                seen[s] = seen.get(s, 0) + 1
-                new_labels.append(f"{s} ({seen[s]})")
-            else:
-                new_labels.append(s)
-        player_meta["surname_label"] = new_labels
-    else:
-        player_meta["surname_label"] = player_meta["surname"]
-
     internal_to_label = dict(zip(player_meta["display_name"], player_meta["surname_label"]))
 
     init_state(internal_players)
@@ -314,21 +309,19 @@ def main() -> None:
         st.error(f"Metric kolom ontbreekt in CSV: {metric_key}")
         st.stop()
 
-    # Filter data to selected players + minutes
     dff = df[df["display_name"].isin(selected_internal)].copy()
     dff = dff[dff["minutes_played"] >= min_minutes].copy()
 
     if dff.empty:
-        st.warning("Geen data na filtering (check minuten slider / spelers).")
+        st.warning("Geen data na filtering (check minuten / spelers).")
         st.stop()
 
-    # Show surname in legend too
-    dff["legend_name"] = dff["display_name"].map(internal_to_label).fillna(dff["display_name"])
+    # player_label is what we show + what we group/color on (NO renaming, avoids duplicate columns)
+    dff["player_label"] = dff["display_name"].map(internal_to_label).fillna(dff["display_name"])
 
     dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
-    dff = dff.sort_values(["match_ts", "event_id", "legend_name"])
+    dff = dff.sort_values(["match_ts", "event_id", "player_label"])
 
-    # Smoothing
     x_col = "match_label"
     y_col = metric_key
     x_order = match_order
@@ -338,27 +331,21 @@ def main() -> None:
         window = int(st.session_state["smooth_window"])
         mode: SmoothMode = st.session_state["smooth_mode"]
 
-        # IMPORTANT: use legend_name for grouping during smoothing
-        tmp = dff.rename(columns={"legend_name": "display_name"}).copy()
-
         if mode == "Chunk average (fewer points)":
-            sm, y_col, x_order = smooth_chunk_average(tmp, metric_key, window=window)
-            dff_plot = sm
+            dff_plot, y_col, x_order = smooth_chunk_average(dff, metric_key, window=window)
             x_col = "chunk_label"
             title_suffix = f" — smoothed (chunk avg {window})"
         else:
-            sm2, y_col = smooth_rolling_mean(tmp, metric_key, window=window)
-            dff_plot = sm2
+            dff_plot, y_col = smooth_rolling_mean(dff, metric_key, window=window)
             title_suffix = f" — smoothed (rolling {window})"
     else:
-        # plot raw
-        dff_plot = dff.rename(columns={"legend_name": "display_name"}).copy()
+        dff_plot = dff
 
     fig = px.line(
         dff_plot,
         x=x_col,
         y=y_col,
-        color="display_name",
+        color="player_label",
         markers=True,
         category_orders={x_col: x_order},
         hover_data={"minutes_played": True} if "minutes_played" in dff_plot.columns else None,
