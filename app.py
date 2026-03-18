@@ -55,7 +55,6 @@ def surname_from_fullname(full_name: str) -> str:
     """
     Dutch-friendly surname extraction:
     keeps last token + preceding lowercase tussenvoegsels (van/de/der/den/te/ter/ten/het/'t).
-    Example: "Pepijn van de Merbel" -> "van de Merbel"
     """
     name = (full_name or "").strip()
     if not name:
@@ -116,6 +115,7 @@ SmoothMode = Literal["Chunk average (fewer points)", "Rolling mean (same points)
 def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[pd.DataFrame, str, List[str]]:
     """
     Downsample per player_label: average each consecutive 'window' matches -> fewer x points.
+    NOTE: pandas passes a Series to agg funcs for a column, not a DataFrame.
     """
     out = dff.copy()
     out["_metric_raw"] = pd.to_numeric(out[metric], errors="coerce")
@@ -124,9 +124,12 @@ def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[p
     out["_match_idx"] = out.groupby("player_label").cumcount()
     out["_chunk"] = (out["_match_idx"] // window).astype(int)
 
-    def chunk_label(g: pd.DataFrame) -> str:
-        first = g["match_label"].iloc[0]
-        last = g["match_label"].iloc[-1]
+    def chunk_label(series: pd.Series) -> str:
+        # series contains match_label values for this chunk
+        if series.empty:
+            return ""
+        first = str(series.iloc[0])
+        last = str(series.iloc[-1])
         return last if first == last else f"{first} → {last}"
 
     agg = (
@@ -147,10 +150,6 @@ def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[p
 
 
 def smooth_rolling_mean(dff: pd.DataFrame, metric: str, window: int) -> Tuple[pd.DataFrame, str]:
-    """
-    Rolling mean per player_label: keeps same x points (1 per match).
-    min_periods=1 so early matches aren't dropped.
-    """
     out = dff.copy()
     out["_metric_raw"] = pd.to_numeric(out[metric], errors="coerce")
     out = out.sort_values(["player_label", "match_ts", "event_id"])
@@ -185,7 +184,7 @@ def main() -> None:
         st.error("CSV loaded but contains no rows (na filter).")
         st.stop()
 
-    # Build internal list (display_name unique) and UI labels (surname)
+    # Internal list (display_name unique) and UI label (surname)
     player_meta = (
         df[["display_name", "player_name"]]
         .dropna()
@@ -195,7 +194,6 @@ def main() -> None:
     )
     player_meta["surname"] = player_meta["player_name"].map(surname_from_fullname)
 
-    # Disambiguate duplicate surnames with "(2)", "(3)" (no initials/numbers)
     counts = player_meta["surname"].value_counts()
     dup = set(counts[counts > 1].index.tolist())
     labels: List[str] = []
@@ -311,14 +309,11 @@ def main() -> None:
 
     dff = df[df["display_name"].isin(selected_internal)].copy()
     dff = dff[dff["minutes_played"] >= min_minutes].copy()
-
     if dff.empty:
         st.warning("Geen data na filtering (check minuten / spelers).")
         st.stop()
 
-    # player_label is what we show + what we group/color on (NO renaming, avoids duplicate columns)
     dff["player_label"] = dff["display_name"].map(internal_to_label).fillna(dff["display_name"])
-
     dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
     dff = dff.sort_values(["match_ts", "event_id", "player_label"])
 
