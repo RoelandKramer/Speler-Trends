@@ -305,8 +305,8 @@ def main() -> None:
 
     if st.session_state["smooth"]:
         window = int(st.session_state["smooth_window"])
-        title_suffix = f" — smoothed (window={window}, anchor-line)"
-
+        title_suffix = f" — smoothed (window={window})"
+        
         for player_label, g in dff.groupby("player_label", sort=True):
             anchors = build_player_anchors(g, metric_key, window=window)
             if anchors.empty:
@@ -340,7 +340,7 @@ def main() -> None:
     fig.update_layout(
         height=740,
         title=f"{METRICS[metric_key]['label']}{title_suffix}",
-        xaxis_title="Match (opponent + thuis/uit) — oud → nieuw",
+        xaxis_title="Match",
         yaxis_title=METRICS[metric_key]["y"],
         legend_title_text="Speler",
         margin=dict(l=20, r=20, t=50, b=20),
