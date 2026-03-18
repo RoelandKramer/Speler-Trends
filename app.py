@@ -160,12 +160,87 @@ def main() -> None:
     st.markdown(
         """
         <style>
-          section[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
-          section[data-testid="stSidebar"] label { font-size: 0.95rem; }
-          section[data-testid="stSidebar"] [data-testid="stCheckbox"] { margin-bottom: -6px; }
-          input[type="checkbox"] { accent-color: #2563eb; }
-          input[type="range"] { accent-color: #2563eb; }
-          section[data-testid="stSidebar"] div[data-baseweb="select"] > div { border-radius: 10px !important; }
+          :root{
+            --sb-bg: #0b3b8f;          /* deep blue */
+            --sb-bg-2: #0a3178;        /* slightly darker for contrast */
+            --sb-text: #ffffff;
+            --sb-muted: rgba(255,255,255,0.80);
+            --sb-card: rgba(255,255,255,0.10);
+            --sb-border: rgba(255,255,255,0.18);
+            --accent: #60a5fa;         /* light blue accent */
+          }
+    
+          /* Sidebar background */
+          section[data-testid="stSidebar"]{
+            background: linear-gradient(180deg, var(--sb-bg) 0%, var(--sb-bg-2) 100%) !important;
+          }
+    
+          /* Sidebar padding (clean) */
+          section[data-testid="stSidebar"] .block-container{
+            padding-top: 1.0rem;
+            padding-bottom: 1.0rem;
+          }
+    
+          /* Sidebar text */
+          section[data-testid="stSidebar"] *{
+            color: var(--sb-text) !important;
+          }
+    
+          /* Muted captions */
+          section[data-testid="stSidebar"] .stCaption,
+          section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{
+            color: var(--sb-muted) !important;
+          }
+    
+          /* Make headers look crisp */
+          section[data-testid="stSidebar"] h1,
+          section[data-testid="stSidebar"] h2,
+          section[data-testid="stSidebar"] h3{
+            letter-spacing: 0.2px;
+          }
+    
+          /* Widget containers: make them look like clean white cards */
+          section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+          section[data-testid="stSidebar"] .stSlider,
+          section[data-testid="stSidebar"] .stRadio,
+          section[data-testid="stSidebar"] .stCheckbox{
+            background: rgba(255,255,255,0.10) !important;
+            border: 1px solid var(--sb-border) !important;
+            border-radius: 12px !important;
+            padding: 8px 10px !important;
+          }
+    
+          /* Selectbox inner */
+          section[data-testid="stSidebar"] div[data-baseweb="select"] > div{
+            box-shadow: none !important;
+          }
+    
+          /* Slider background fix */
+          section[data-testid="stSidebar"] [data-testid="stSlider"]{
+            padding-top: 10px !important;
+            padding-bottom: 6px !important;
+          }
+    
+          /* Checkbox spacing tight */
+          section[data-testid="stSidebar"] [data-testid="stCheckbox"]{
+            margin: 0 0 8px 0 !important;
+          }
+    
+          /* Divider subtle */
+          section[data-testid="stSidebar"] hr{
+            border-color: rgba(255,255,255,0.18) !important;
+          }
+    
+          /* Accent color for inputs (modern browsers) */
+          section[data-testid="stSidebar"] input[type="checkbox"]{ accent-color: var(--accent) !important; }
+          section[data-testid="stSidebar"] input[type="range"]{ accent-color: var(--accent) !important; }
+    
+          /* Make select dropdown text dark inside the white menu (menu is rendered outside sidebar) */
+          div[data-baseweb="popover"] *{
+            color: #0f172a !important;
+          }
+    
+          /* Keep main area unchanged */
         </style>
         """,
         unsafe_allow_html=True,
