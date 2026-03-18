@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Literal, Tuple
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -55,6 +56,8 @@ def init_state(players: List[str]) -> None:
         st.session_state["smooth"] = False
     if "smooth_window" not in st.session_state:
         st.session_state["smooth_window"] = 5
+    if "smooth_mode" not in st.session_state:
+        st.session_state["smooth_mode"] = "Chunk average (fewer points)"
 
     if "player_selected" not in st.session_state:
         st.session_state["player_selected"] = {p: True for p in players}
@@ -76,25 +79,65 @@ def get_selected_players(players: List[str]) -> List[str]:
     return [p for p in players if sel.get(p, False)]
 
 
-def add_smoothed_series(dff: pd.DataFrame, metric: str, window: int) -> pd.DataFrame:
+SmoothMode = Literal["Chunk average (fewer points)", "Rolling mean (same points)"]
+
+
+def smooth_chunk_average(dff: pd.DataFrame, metric: str, window: int) -> Tuple[pd.DataFrame, str, List[str]]:
     """
-    Rolling mean per player across matches (ordered by match_ts/event_id).
-    Keeps same x points; y becomes smoothed.
+    Downsample per player: average each consecutive 'window' matches.
+    Produces FEWER x points: one per chunk.
     """
     out = dff.copy()
-    out = out.sort_values(["display_name", "match_ts", "event_id"])
     out["_metric_raw"] = pd.to_numeric(out[metric], errors="coerce")
-    out["_metric_smoothed"] = (
-        out.groupby("display_name")["_metric_raw"]
-        .transform(lambda s: s.rolling(window=window, min_periods=max(2, window // 2)).mean())
+
+    out = out.sort_values(["display_name", "match_ts", "event_id"]).reset_index(drop=True)
+    out["_match_idx"] = out.groupby("display_name").cumcount()
+    out["_chunk"] = (out["_match_idx"] // window).astype(int)
+
+    def chunk_label(g: pd.DataFrame) -> str:
+        first = g["match_label"].iloc[0]
+        last = g["match_label"].iloc[-1]
+        if first == last:
+            return last
+        return f"{first} → {last}"
+
+    agg = (
+        out.groupby(["display_name", "_chunk"], as_index=False)
+        .agg(
+            chunk_end_ts=("match_ts", "max"),
+            chunk_end_event=("event_id", "max"),
+            chunk_label=("match_label", chunk_label),
+            minutes_avg=("minutes_played", "mean"),
+            metric_avg=("_metric_raw", "mean"),
+        )
+        .sort_values(["chunk_end_ts", "chunk_end_event", "display_name"])
+        .reset_index(drop=True)
     )
-    return out
+
+    x_col = "chunk_label"
+    y_col = "metric_avg"
+    x_order = agg.sort_values(["chunk_end_ts", "chunk_end_event"])["chunk_label"].drop_duplicates().tolist()
+    return agg, y_col, x_order
+
+
+def smooth_rolling_mean(dff: pd.DataFrame, metric: str, window: int) -> Tuple[pd.DataFrame, str]:
+    """
+    Rolling mean per player: keeps same x points (1 per match).
+    min_periods=1 so you don't "lose" early matches.
+    """
+    out = dff.copy()
+    out["_metric_raw"] = pd.to_numeric(out[metric], errors="coerce")
+    out = out.sort_values(["display_name", "match_ts", "event_id"])
+    out["_metric_roll"] = (
+        out.groupby("display_name")["_metric_raw"]
+        .transform(lambda s: s.rolling(window=window, min_periods=1).mean())
+    )
+    return out, "_metric_roll"
 
 
 def main() -> None:
     st.set_page_config(page_title="FC Den Bosch — Speler Trends", layout="wide")
 
-    # Sidebar styling (blue accents, tighter layout)
     st.markdown(
         """
         <style>
@@ -162,8 +205,16 @@ def main() -> None:
         st.subheader("Trend weergave")
 
         st.session_state["smooth"] = st.checkbox("Smoothed graph", value=bool(st.session_state["smooth"]))
+
+        st.session_state["smooth_mode"] = st.radio(
+            "Smoothing type",
+            options=["Chunk average (fewer points)", "Rolling mean (same points)"],
+            index=0 if st.session_state["smooth_mode"].startswith("Chunk") else 1,
+            disabled=not st.session_state["smooth"],
+        )
+
         st.session_state["smooth_window"] = st.slider(
-            "Smoothing window (matches)",
+            "Window (matches)",
             min_value=3,
             max_value=11,
             value=int(st.session_state["smooth_window"]),
@@ -224,29 +275,39 @@ def main() -> None:
     dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
     dff = dff.sort_values(["match_ts", "event_id", "display_name"])
 
-    # smoothing
+    # Apply smoothing
+    x_col = "match_label"
     y_col = metric_key
+    x_order = match_order
     title_suffix = ""
+
     if st.session_state["smooth"]:
         window = int(st.session_state["smooth_window"])
-        dff = add_smoothed_series(dff, metric_key, window=window)
-        y_col = "_metric_smoothed"
-        title_suffix = f" — smoothed (rolling {window})"
+        mode: SmoothMode = st.session_state["smooth_mode"]
+
+        if mode == "Chunk average (fewer points)":
+            sm, y_col, x_order = smooth_chunk_average(dff, metric_key, window=window)
+            dff = sm
+            x_col = "chunk_label"
+            title_suffix = f" — smoothed (chunk avg {window})"
+        else:
+            dff, y_col = smooth_rolling_mean(dff, metric_key, window=window)
+            title_suffix = f" — smoothed (rolling {window})"
 
     fig = px.line(
         dff,
-        x="match_label",
+        x=x_col,
         y=y_col,
         color="display_name",
         markers=True,
-        category_orders={"match_label": match_order},
-        hover_data={"minutes_played": True, metric_key: True},
+        category_orders={x_col: x_order},
+        hover_data={"minutes_played": True} if "minutes_played" in dff.columns else None,
     )
 
     fig.update_layout(
         height=740,
         title=f"{METRICS[metric_key]['label']}{title_suffix}",
-        xaxis_title="Match (opponent + thuis/uit) — oud → nieuw",
+        xaxis_title="Match (opponent + thuis/uit) — oud → nieuw" if x_col == "match_label" else "Match chunks (old → new)",
         yaxis_title=METRICS[metric_key]["y"],
         legend_title_text="Speler",
         margin=dict(l=20, r=20, t=40, b=20),
@@ -255,13 +316,6 @@ def main() -> None:
     fig.update_yaxes(showgrid=True, gridcolor="rgba(37,99,235,0.10)")
 
     st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("Data (gefilterd)"):
-        cols = ["match_date_utc", "match_label", "display_name", "minutes_played", metric_key]
-        if st.session_state["smooth"]:
-            cols.append("_metric_smoothed")
-        cols = [c for c in cols if c in dff.columns]
-        st.dataframe(dff[cols], use_container_width=True)
 
 
 if __name__ == "__main__":
