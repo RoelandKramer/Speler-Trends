@@ -4,17 +4,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
 CSV_PATH = Path("data/player_match_data.csv")
-
-# CSV columns we expect:
-# - match_ts (int), match_label (str), display_name (str), minutes_played (float)
-# - per90 metrics and ball_losses_per_touch_pct
-
 
 METRICS: Dict[str, Dict[str, str]] = {
     "ball_losses_per_touch_pct": {"label": "Balverlies per aanraking (%)", "y": "Balverlies per aanraking (%)"},
@@ -37,36 +31,25 @@ def load_data(path: Path) -> pd.DataFrame:
 
     df = pd.read_csv(path)
 
-    # Normalize types
-    df["match_ts"] = pd.to_numeric(df.get("match_ts"), errors="coerce").fillna(0).astype(int)
-    df["minutes_played"] = pd.to_numeric(df.get("minutes_played"), errors="coerce").fillna(0).astype(float)
-    df["match_label"] = df.get("match_label", "").astype(str)
-    df["display_name"] = df.get("display_name", "").astype(str)
+    required = {"match_ts", "event_id", "match_label", "display_name", "minutes_played"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"CSV missing required columns: {sorted(missing)}")
 
-    # Stable ordering (oldest -> newest)
-    df = df.sort_values(["match_ts", "event_id", "display_name"]).reset_index(drop=True)
-    return df
+    df["match_ts"] = pd.to_numeric(df["match_ts"], errors="coerce").fillna(0).astype(int)
+    df["event_id"] = pd.to_numeric(df["event_id"], errors="coerce").fillna(0).astype(int)
+    df["minutes_played"] = pd.to_numeric(df["minutes_played"], errors="coerce").fillna(0).astype(float)
+    df["match_label"] = df["match_label"].astype(str)
+    df["display_name"] = df["display_name"].astype(str)
+
+    return df.sort_values(["match_ts", "event_id", "display_name"]).reset_index(drop=True)
 
 
-def _init_state(all_players: List[str]) -> None:
+def init_state(all_players: List[str]) -> None:
     if "metric_key" not in st.session_state:
         st.session_state["metric_key"] = "ball_losses_per_touch_pct"
-    if "all_toggle" not in st.session_state:
-        st.session_state["all_toggle"] = True
     if "selected_players" not in st.session_state:
-        st.session_state["selected_players"] = all_players[:]  # default: all selected
-
-
-def _set_all_players(all_players: List[str]) -> None:
-    if st.session_state.get("all_toggle", True):
-        st.session_state["selected_players"] = all_players[:]
-    else:
-        st.session_state["selected_players"] = []
-
-
-def _sync_all_toggle(all_players: List[str]) -> None:
-    sel = st.session_state.get("selected_players", [])
-    st.session_state["all_toggle"] = len(all_players) > 0 and len(sel) == len(all_players)
+        st.session_state["selected_players"] = all_players[:]  # default all selected
 
 
 def main() -> None:
@@ -78,7 +61,6 @@ def main() -> None:
         st.error("CSV loaded but contains no rows.")
         st.stop()
 
-    # Players (checklist behavior via multiselect + select-all toggle)
     all_players = (
         df["display_name"]
         .dropna()
@@ -87,9 +69,8 @@ def main() -> None:
         .sort_values()
         .tolist()
     )
-    _init_state(all_players)
+    init_state(all_players)
 
-    # Match order for x-axis: oldest -> newest
     match_order = (
         df[["match_ts", "event_id", "match_label"]]
         .dropna()
@@ -99,11 +80,9 @@ def main() -> None:
         .tolist()
     )
 
-    # Sidebar UI
     with st.sidebar:
         st.header("Instellingen")
 
-        # Metric dropdown
         metric_labels = [METRICS[k]["label"] for k in METRICS]
         label_to_key = {METRICS[k]["label"]: k for k in METRICS}
 
@@ -117,7 +96,6 @@ def main() -> None:
         )
         st.session_state["metric_key"] = label_to_key[chosen_label]
 
-        # Minutes slider (default 45)
         min_minutes = st.slider(
             "Minimum minuten (match wordt getoond als speler ≥ deze minuten speelde)",
             min_value=0,
@@ -126,23 +104,17 @@ def main() -> None:
             step=5,
         )
 
-        # Select/deselect all
-        st.checkbox(
-            "Alle spelers",
-            key="all_toggle",
-            value=st.session_state.get("all_toggle", True),
-            on_change=_set_all_players,
-            args=(all_players,),
-        )
+        c1, c2 = st.columns(2)
+        if c1.button("Selecteer alles", use_container_width=True):
+            st.session_state["selected_players"] = all_players[:]
+        if c2.button("Wis alles", use_container_width=True):
+            st.session_state["selected_players"] = []
 
-        # Player selection
         st.multiselect(
             "Selecteer spelers",
             options=all_players,
-            default=st.session_state.get("selected_players", all_players),
             key="selected_players",
         )
-        _sync_all_toggle(all_players)
 
         if st.button("Herlaad CSV"):
             load_data.clear()
@@ -161,7 +133,6 @@ def main() -> None:
         st.error(f"Metric kolom ontbreekt in CSV: {metric_key}")
         st.stop()
 
-    # Filter by players + minutes
     dff = df[df["display_name"].isin(selected_players)].copy()
     dff = dff[dff["minutes_played"] >= float(min_minutes)].copy()
 
@@ -169,11 +140,9 @@ def main() -> None:
         st.warning("Geen data na filtering (check minuten slider / spelers).")
         st.stop()
 
-    # Enforce x-axis order
     dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
     dff = dff.sort_values(["match_ts", "event_id", "display_name"])
 
-    # Plot
     fig = px.line(
         dff,
         x="match_label",
@@ -185,13 +154,8 @@ def main() -> None:
             "display_name": True,
             "match_label": True,
             "minutes_played": True,
-            "passes_p90": "passes_p90" in dff.columns,
-            "possession_lost_p90": "possession_lost_p90" in dff.columns,
-            "touches_p90": "touches_p90" in dff.columns,
-            "pass_accuracy_match": "pass_accuracy_match" in dff.columns,
         },
     )
-
     fig.update_layout(
         height=720,
         xaxis_title="Match (opponent + thuis/uit) — oud → nieuw",
@@ -204,9 +168,9 @@ def main() -> None:
     st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("Data (gefilterd)"):
-        show_cols = ["match_date_utc", "match_label", "display_name", "minutes_played", metric_key]
-        show_cols = [c for c in show_cols if c in dff.columns]
-        st.dataframe(dff[show_cols], use_container_width=True)
+        cols = ["match_date_utc", "match_label", "display_name", "minutes_played", metric_key]
+        cols = [c for c in cols if c in dff.columns]
+        st.dataframe(dff[cols], use_container_width=True)
 
 
 if __name__ == "__main__":
