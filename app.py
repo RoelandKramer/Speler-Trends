@@ -76,9 +76,9 @@ def init_state(players_internal: List[str]) -> None:
         st.session_state["min_minutes"] = 45
 
     if "smooth" not in st.session_state:
-        st.session_state["smooth"] = False
+        st.session_state["smooth"] = True
     if "smooth_window" not in st.session_state:
-        st.session_state["smooth_window"] = 5
+        st.session_state["smooth_window"] = 3
 
     if "player_selected" not in st.session_state:
         st.session_state["player_selected"] = {p: True for p in players_internal}
