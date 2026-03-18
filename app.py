@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
+import numpy as np
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 CSV_PATH = Path("data/player_match_data.csv")
@@ -44,9 +45,7 @@ def load_data(path: Path) -> pd.DataFrame:
     df["display_name"] = df["display_name"].astype(str)
     df["player_name"] = df["player_name"].astype(str)
 
-    # Exclude keeper everywhere
     df = df[df["player_name"].str.strip() != EXCLUDE_PLAYER_FULLNAME].copy()
-
     return df.sort_values(["match_ts", "event_id", "display_name"]).reset_index(drop=True)
 
 
@@ -59,7 +58,6 @@ def surname_from_fullname(full_name: str) -> str:
         return parts[0]
 
     prefixes = {"van", "de", "der", "den", "te", "ter", "ten", "het", "'t", "v/d", "v.d.", "v/d."}
-
     j = len(parts) - 1
     while j - 1 >= 0:
         prev = parts[j - 1]
@@ -80,7 +78,7 @@ def init_state(players_internal: List[str]) -> None:
     if "smooth" not in st.session_state:
         st.session_state["smooth"] = False
     if "smooth_window" not in st.session_state:
-        st.session_state["smooth_window"] = 5  # will clamp to 2..16
+        st.session_state["smooth_window"] = 5
 
     if "player_selected" not in st.session_state:
         st.session_state["player_selected"] = {p: True for p in players_internal}
@@ -104,31 +102,55 @@ def get_selected_players(players_internal: List[str]) -> List[str]:
     return [p for p in players_internal if sel.get(p, False)]
 
 
-def apply_chunk_smoothing(dff: pd.DataFrame, metric: str, window: int) -> pd.DataFrame:
+def build_player_anchors(
+    player_df: pd.DataFrame,
+    metric_col: str,
+    window: int,
+) -> pd.DataFrame:
     """
-    Chunk-average smoothing per player_label, but KEEP ALL MATCH TICKS.
-    Implementation:
-      - assign each match to a chunk of size `window` (per player)
-      - compute mean(metric) per chunk
-      - write that mean back to ALL matches in the chunk (flat segment)
-    Result:
-      - x-axis stays all matches
-      - line continues until player's last match
+    Build anchor points for one player:
+      - x=match 1: avg(first 2 matches) (or first 1 if only one match) -> marker ON
+      - x=window, 2*window, ...: avg of each full window chunk -> marker ON
+      - x=last match if remainder exists: avg(remainder) -> marker OFF
+    Output columns: match_label, y, marker_size
     """
-    out = dff.copy()
-    out["_metric_raw"] = pd.to_numeric(out[metric], errors="coerce")
+    p = player_df.sort_values(["match_ts", "event_id"]).reset_index(drop=True)
+    n = len(p)
+    if n == 0:
+        return pd.DataFrame(columns=["match_label", "y", "marker_size"])
 
-    out = out.sort_values(["player_label", "match_ts", "event_id"]).reset_index(drop=True)
-    out["_match_idx"] = out.groupby("player_label").cumcount()
-    out["_chunk"] = (out["_match_idx"] // window).astype(int)
+    vals = pd.to_numeric(p[metric_col], errors="coerce").to_numpy()
 
-    chunk_mean = (
-        out.groupby(["player_label", "_chunk"], as_index=False)["_metric_raw"]
-        .mean()
-        .rename(columns={"_metric_raw": "_metric_chunk"})
-    )
-    out = out.merge(chunk_mean, on=["player_label", "_chunk"], how="left")
-    out["_metric_smoothed"] = out["_metric_chunk"]
+    def avg_slice(a: np.ndarray) -> float:
+        a = a[~np.isnan(a)]
+        return float(np.mean(a)) if a.size else np.nan
+
+    anchors: List[Tuple[str, float, int]] = []
+
+    # startpoint at match 1: avg first two matches (or one if n==1)
+    start_avg = avg_slice(vals[:2]) if n >= 2 else avg_slice(vals[:1])
+    anchors.append((p.loc[0, "match_label"], start_avg, 8))
+
+    # full windows
+    full_chunks = n // window
+    for chunk_idx in range(full_chunks):
+        start = chunk_idx * window
+        end = start + window
+        y = avg_slice(vals[start:end])
+        x_label = p.loc[end - 1, "match_label"]  # end-of-window match label
+        anchors.append((x_label, y, 8))
+
+    # remainder -> end at last match, no dot
+    rem = n % window
+    if rem != 0:
+        start = full_chunks * window
+        y = avg_slice(vals[start:n])
+        x_label = p.loc[n - 1, "match_label"]
+        anchors.append((x_label, y, 0))
+
+    # de-dup if window=1 or weird overlaps; keep last occurrence
+    out = pd.DataFrame(anchors, columns=["match_label", "y", "marker_size"])
+    out = out.drop_duplicates(subset=["match_label"], keep="last").reset_index(drop=True)
     return out
 
 
@@ -156,7 +178,7 @@ def main() -> None:
         st.error("CSV loaded but contains no rows (na filter).")
         st.stop()
 
-    # internal key (unique) + surname label
+    # players (unique internal key = display_name) + label (surname)
     player_meta = (
         df[["display_name", "player_name"]]
         .dropna()
@@ -183,7 +205,7 @@ def main() -> None:
 
     init_state(internal_players)
 
-    # x-axis order: ALL matches, oldest -> newest
+    # ALL matches order for ticks
     match_order = (
         df[["match_ts", "event_id", "match_label"]]
         .dropna()
@@ -266,39 +288,54 @@ def main() -> None:
         st.error(f"Metric kolom ontbreekt in CSV: {metric_key}")
         st.stop()
 
-    # Filter to selected players + minutes
+    # Filter
     dff = df[df["display_name"].isin(selected_internal)].copy()
     dff = dff[dff["minutes_played"] >= min_minutes].copy()
     if dff.empty:
         st.warning("Geen data na filtering (check minuten / spelers).")
         st.stop()
 
-    # Labels for UI and grouping
     dff["player_label"] = dff["display_name"].map(internal_to_label).fillna(dff["display_name"])
 
-    # enforce x-axis categories for ALL matches
+    # enforce x categories for all ticks
     dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
     dff = dff.sort_values(["match_ts", "event_id", "player_label"])
 
-    title_suffix = ""
-    y_col = metric_key
-    plot_df = dff
+    fig = go.Figure()
 
     if st.session_state["smooth"]:
         window = int(st.session_state["smooth_window"])
-        plot_df = apply_chunk_smoothing(dff, metric_key, window=window)
-        y_col = "_metric_smoothed"
-        title_suffix = f" — smoothed (chunk avg {window}, same ticks)"
+        title_suffix = f" — smoothed (window={window}, anchor-line)"
 
-    fig = px.line(
-        plot_df,
-        x="match_label",
-        y=y_col,
-        color="player_label",
-        markers=True,
-        category_orders={"match_label": match_order},
-        hover_data={"minutes_played": True, metric_key: True},
-    )
+        for player_label, g in dff.groupby("player_label", sort=True):
+            anchors = build_player_anchors(g, metric_key, window=window)
+            if anchors.empty:
+                continue
+
+            fig.add_trace(
+                go.Scatter(
+                    x=anchors["match_label"],
+                    y=anchors["y"],
+                    mode="lines+markers",
+                    name=player_label,
+                    marker=dict(size=anchors["marker_size"]),
+                    connectgaps=False,
+                )
+            )
+    else:
+        title_suffix = ""
+        # raw plot (full per match points)
+        for player_label, g in dff.groupby("player_label", sort=True):
+            fig.add_trace(
+                go.Scatter(
+                    x=g["match_label"],
+                    y=g[metric_key],
+                    mode="lines+markers",
+                    name=player_label,
+                    marker=dict(size=6),
+                    connectgaps=False,
+                )
+            )
 
     fig.update_layout(
         height=740,
@@ -306,9 +343,15 @@ def main() -> None:
         xaxis_title="Match (opponent + thuis/uit) — oud → nieuw",
         yaxis_title=METRICS[metric_key]["y"],
         legend_title_text="Speler",
-        margin=dict(l=20, r=20, t=40, b=20),
+        margin=dict(l=20, r=20, t=50, b=20),
     )
-    fig.update_xaxes(tickangle=-45, showgrid=True, gridcolor="rgba(37,99,235,0.12)")
+    fig.update_xaxes(
+        categoryorder="array",
+        categoryarray=match_order,
+        tickangle=-45,
+        showgrid=True,
+        gridcolor="rgba(37,99,235,0.12)",
+    )
     fig.update_yaxes(showgrid=True, gridcolor="rgba(37,99,235,0.10)")
 
     st.plotly_chart(fig, use_container_width=True)
