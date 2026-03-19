@@ -198,7 +198,7 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    st.title("FC Den Bosch — Player trends per match")
+    st.title("FC Den Bosch — Player trends through the Season")
 
     df = load_data(CSV_PATH)
     if df.empty:
