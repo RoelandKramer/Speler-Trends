@@ -13,16 +13,37 @@ CSV_PATH = Path("data/player_match_data.csv")
 EXCLUDE_PLAYER_FULLNAME = "Pepijn van de Merbel"
 
 METRICS: Dict[str, Dict[str, str]] = {
-    "ball_losses_per_touch_pct": {"label": "Balverlies per aanraking (%)", "y": "Balverlies per aanraking (%)"},
-    "possession_lost_p90": {"label": "Balverlies per 90", "y": "Balverlies per 90"},
-    "touches_p90": {"label": "Aanrakingen per 90", "y": "Aanrakingen per 90"},
-    "passes_p90": {"label": "Passes per 90", "y": "Passes per 90"},
-    "tackles_won_p90": {"label": "Tackles gewonnen per 90", "y": "Tackles per 90"},
-    "duels_won_p90": {"label": "Duels gewonnen per 90", "y": "Duels per 90"},
-    "successful_dribbles_p90": {"label": "Succesvolle dribbles per 90", "y": "Dribbles per 90"},
+    "air_duels": {"label": "Aerial duels", "y": "Aerial duels"},
+    "air_duels_p90": {"label": "Aerial duels per 90", "y": "Aerial duels per 90"},
+    "air_duels_won": {"label": "Aerial duels won", "y": "Aerial duels won"},
+    "air_duels_won_p90": {"label": "Aerial duels won per 90", "y": "Aerial duels won per 90"},
+    "ball_losses_per_touch_pct": {"label": "Ball losses per touch (%)", "y": "Ball losses per touch (%)"},
+    "crosses_accurate": {"label": "Accurate crosses", "y": "Accurate crosses"},
+    "crosses_accurate_p90": {"label": "Accurate crosses per 90", "y": "Accurate crosses per 90"},
+    "crosses_accuracy_pct": {"label": "Cross accuracy (%)", "y": "Cross accuracy (%)"},
+    "crosses_total": {"label": "Crosses attempted", "y": "Crosses attempted"},
+    "crosses_total_p90": {"label": "Crosses attempted per 90", "y": "Crosses attempted per 90"},
     "defensive_actions_p90": {"label": "Defensive actions per 90", "y": "Defensive actions per 90"},
+    "duels_total": {"label": "Total duels", "y": "Total duels"},
+    "duels_total_p90": {"label": "Total duels per 90", "y": "Total duels per 90"},
+    "duels_won_p90": {"label": "Duels won per 90", "y": "Duels won per 90"},
+    "ground_duels": {"label": "Ground duels", "y": "Ground duels"},
+    "ground_duels_p90": {"label": "Ground duels per 90", "y": "Ground duels per 90"},
+    "ground_duels_won": {"label": "Ground duels won", "y": "Ground duels won"},
+    "ground_duels_won_p90": {"label": "Ground duels won per 90", "y": "Ground duels won per 90"},
+    "interceptions": {"label": "Interceptions", "y": "Interceptions"},
+    "interceptions_p90": {"label": "Interceptions per 90", "y": "Interceptions per 90"},
     "key_passes_p90": {"label": "Key passes per 90", "y": "Key passes per 90"},
-    "pass_accuracy_match": {"label": "Passnauwkeurigheid (%)", "y": "Passnauwkeurigheid (%)"},
+    "pass_accuracy_match": {"label": "Pass accuracy (%)", "y": "Pass accuracy (%)"},
+    "passes_p90": {"label": "Passes per 90", "y": "Passes per 90"},
+    "possession_lost_p90": {"label": "Possessions lost per 90", "y": "Possessions lost per 90"},
+    "shots_on_target": {"label": "Shots on target", "y": "Shots on target"},
+    "shots_on_target_p90": {"label": "Shots on target per 90", "y": "Shots on target per 90"},
+    "shots_total": {"label": "Shots", "y": "Shots"},
+    "shots_total_p90": {"label": "Shots per 90", "y": "Shots per 90"},
+    "successful_dribbles_p90": {"label": "Successful dribbles per 90", "y": "Successful dribbles per 90"},
+    "tackles_won_p90": {"label": "Tackles won per 90", "y": "Tackles won per 90"},
+    "touches_p90": {"label": "Touches per 90", "y": "Touches per 90"},
 }
 
 
@@ -69,9 +90,9 @@ def surname_from_fullname(full_name: str) -> str:
     return " ".join(parts[j:])
 
 
-def init_state(players_internal: List[str]) -> None:
+def init_state(players_internal: List[str], default_metric_key: str) -> None:
     if "metric_key" not in st.session_state:
-        st.session_state["metric_key"] = "ball_losses_per_touch_pct"
+        st.session_state["metric_key"] = default_metric_key
     if "min_minutes" not in st.session_state:
         st.session_state["min_minutes"] = 45
 
@@ -102,13 +123,9 @@ def get_selected_players(players_internal: List[str]) -> List[str]:
     return [p for p in players_internal if sel.get(p, False)]
 
 
-def build_player_anchors(
-    player_df: pd.DataFrame,
-    metric_col: str,
-    window: int,
-) -> pd.DataFrame:
+def build_player_anchors(player_df: pd.DataFrame, metric_col: str, window: int) -> pd.DataFrame:
     """
-    Build anchor points for one player:
+    Anchor points per player:
       - x=match 1: avg(first 2 matches) (or first 1 if only one match) -> marker ON
       - x=window, 2*window, ...: avg of each full window chunk -> marker ON
       - x=last match if remainder exists: avg(remainder) -> marker OFF
@@ -127,20 +144,17 @@ def build_player_anchors(
 
     anchors: List[Tuple[str, float, int]] = []
 
-    # startpoint at match 1: avg first two matches (or one if n==1)
     start_avg = avg_slice(vals[:2]) if n >= 2 else avg_slice(vals[:1])
     anchors.append((p.loc[0, "match_label"], start_avg, 8))
 
-    # full windows
     full_chunks = n // window
     for chunk_idx in range(full_chunks):
         start = chunk_idx * window
         end = start + window
         y = avg_slice(vals[start:end])
-        x_label = p.loc[end - 1, "match_label"]  # end-of-window match label
+        x_label = p.loc[end - 1, "match_label"]
         anchors.append((x_label, y, 8))
 
-    # remainder -> end at last match, no dot
     rem = n % window
     if rem != 0:
         start = full_chunks * window
@@ -148,14 +162,27 @@ def build_player_anchors(
         x_label = p.loc[n - 1, "match_label"]
         anchors.append((x_label, y, 0))
 
-    # de-dup if window=1 or weird overlaps; keep last occurrence
     out = pd.DataFrame(anchors, columns=["match_label", "y", "marker_size"])
     out = out.drop_duplicates(subset=["match_label"], keep="last").reset_index(drop=True)
     return out
 
 
+def get_metric_options(df: pd.DataFrame) -> Tuple[List[str], Dict[str, str], str]:
+    available_keys = [k for k in METRICS.keys() if k in df.columns]
+    if not available_keys:
+        raise ValueError("No metric columns found in CSV that match METRICS.")
+
+    pairs = [(METRICS[k]["label"], k) for k in available_keys]
+    pairs.sort(key=lambda x: x[0].casefold())
+
+    metric_labels = [p[0] for p in pairs]
+    label_to_key = {label: key for label, key in pairs}
+    default_key = pairs[0][1]
+    return metric_labels, label_to_key, default_key
+
+
 def main() -> None:
-    st.set_page_config(page_title="FC Den Bosch — Speler Trends", layout="wide")
+    st.set_page_config(page_title="FC Den Bosch — Player Trends", layout="wide")
 
     st.markdown(
         """
@@ -171,14 +198,15 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    st.title("FC Den Bosch — Spelertrends per match")
+    st.title("FC Den Bosch — Player trends per match")
 
     df = load_data(CSV_PATH)
     if df.empty:
-        st.error("CSV loaded but contains no rows (na filter).")
+        st.error("CSV loaded but contains no rows (after filtering).")
         st.stop()
 
-    # players (unique internal key = display_name) + label (surname)
+    metric_labels, label_to_key, default_metric_key = get_metric_options(df)
+
     player_meta = (
         df[["display_name", "player_name"]]
         .dropna()
@@ -203,9 +231,8 @@ def main() -> None:
     internal_players = player_meta["display_name"].tolist()
     internal_to_label = dict(zip(player_meta["display_name"], player_meta["surname_label"]))
 
-    init_state(internal_players)
+    init_state(internal_players, default_metric_key=default_metric_key)
 
-    # ALL matches order for ticks
     match_order = (
         df[["match_ts", "event_id", "match_label"]]
         .dropna()
@@ -216,22 +243,23 @@ def main() -> None:
     )
 
     with st.sidebar:
-        st.header("Instellingen")
+        st.header("Settings")
 
-        metric_labels = [METRICS[k]["label"] for k in METRICS]
-        label_to_key = {METRICS[k]["label"]: k for k in METRICS}
-        current_key = st.session_state["metric_key"]
-        current_label = METRICS.get(current_key, METRICS["ball_losses_per_touch_pct"])["label"]
+        current_key = st.session_state.get("metric_key", default_metric_key)
+        if current_key not in df.columns or current_key not in METRICS:
+            current_key = default_metric_key
+            st.session_state["metric_key"] = current_key
 
+        current_label = METRICS[current_key]["label"]
         chosen_label = st.selectbox(
-            "Variabele",
+            "Metric",
             options=metric_labels,
             index=metric_labels.index(current_label) if current_label in metric_labels else 0,
         )
         st.session_state["metric_key"] = label_to_key[chosen_label]
 
         st.session_state["min_minutes"] = st.slider(
-            "Minimum minuten",
+            "Minimum minutes played",
             min_value=0,
             max_value=90,
             value=int(st.session_state["min_minutes"]),
@@ -239,7 +267,7 @@ def main() -> None:
         )
 
         st.divider()
-        st.subheader("Trend weergave")
+        st.subheader("Trend display")
 
         st.session_state["smooth"] = st.checkbox("Smoothed graph", value=bool(st.session_state["smooth"]))
         st.session_state["smooth_window"] = st.slider(
@@ -252,10 +280,14 @@ def main() -> None:
         )
 
         st.divider()
-        st.subheader("Selecteer spelers")
+        st.subheader("Select players")
 
-        all_now = all(st.session_state["player_selected"].get(p, False) for p in internal_players) if internal_players else False
-        all_toggle = st.checkbox("Alle spelers", value=all_now, key="all_players_checkbox")
+        all_now = (
+            all(st.session_state["player_selected"].get(p, False) for p in internal_players)
+            if internal_players
+            else False
+        )
+        all_toggle = st.checkbox("All players", value=all_now, key="all_players_checkbox")
         if all_toggle != all_now:
             set_all(internal_players, all_toggle)
             st.rerun()
@@ -281,23 +313,20 @@ def main() -> None:
     selected_internal = get_selected_players(internal_players)
 
     if not selected_internal:
-        st.warning("Selecteer minimaal 1 speler.")
+        st.warning("Select at least 1 player.")
         st.stop()
 
     if metric_key not in df.columns:
-        st.error(f"Metric kolom ontbreekt in CSV: {metric_key}")
+        st.error(f"Metric column missing in CSV: {metric_key}")
         st.stop()
 
-    # Filter
     dff = df[df["display_name"].isin(selected_internal)].copy()
     dff = dff[dff["minutes_played"] >= min_minutes].copy()
     if dff.empty:
-        st.warning("Geen data na filtering (check minuten / spelers).")
+        st.warning("No data after filtering (check minutes / players).")
         st.stop()
 
     dff["player_label"] = dff["display_name"].map(internal_to_label).fillna(dff["display_name"])
-
-    # enforce x categories for all ticks
     dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
     dff = dff.sort_values(["match_ts", "event_id", "player_label"])
 
@@ -306,12 +335,11 @@ def main() -> None:
     if st.session_state["smooth"]:
         window = int(st.session_state["smooth_window"])
         title_suffix = f" — smoothed (window={window})"
-        
+
         for player_label, g in dff.groupby("player_label", sort=True):
             anchors = build_player_anchors(g, metric_key, window=window)
             if anchors.empty:
                 continue
-
             fig.add_trace(
                 go.Scatter(
                     x=anchors["match_label"],
@@ -324,7 +352,6 @@ def main() -> None:
             )
     else:
         title_suffix = ""
-        # raw plot (full per match points)
         for player_label, g in dff.groupby("player_label", sort=True):
             fig.add_trace(
                 go.Scatter(
@@ -342,7 +369,7 @@ def main() -> None:
         title=f"{METRICS[metric_key]['label']}{title_suffix}",
         xaxis_title="Match",
         yaxis_title=METRICS[metric_key]["y"],
-        legend_title_text="Speler",
+        legend_title_text="Player",
         margin=dict(l=20, r=20, t=50, b=20),
     )
     fig.update_xaxes(
