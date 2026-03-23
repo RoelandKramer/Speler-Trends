@@ -386,6 +386,30 @@ def main() -> None:
         st.error("CSV loaded but contains no rows (after filtering).")
         st.stop()
 
+    # ── TEMPORARY DEBUG EXPANDER — remove once positions work ──────────────
+    with st.expander("🔧 Debug: display_name values & roster matching", expanded=False):
+        st.markdown("**All `display_name` values in CSV:**")
+        st.write(sorted(df["display_name"].unique().tolist()))
+
+        roster_names_flat = {
+            "de Groot","Akmum","van Grunsven","Fortes","Maas","Laros","Barglan","van Koeverden",
+            "Wang","Felida","van Leeuwen","Boumassaoudi","De Vries","el Bakkali",
+            "Sillé","Semedo","Allachi","Monzialo","Verbeek","Grach","Wolters",
+        }
+        csv_names = set(df["display_name"].unique())
+        unmatched = roster_names_flat - csv_names
+        matched = roster_names_flat & csv_names
+        st.markdown("**Roster names that MATCH a display_name in CSV:**")
+        st.write(sorted(matched))
+        st.markdown("**Roster names with NO match — these break the position lines:**")
+        st.write(sorted(unmatched) if unmatched else "✅ All match!")
+
+        sample_id = 14056658
+        sample = df[df["event_id"] == sample_id]
+        st.markdown(f"**display_names in match event_id `{sample_id}`:**")
+        st.write(sorted(sample["display_name"].unique().tolist()))
+    # ── END DEBUG ───────────────────────────────────────────────────────────
+
     metric_labels, label_to_key, default_metric_key = get_metric_options(df)
 
     player_meta = (
