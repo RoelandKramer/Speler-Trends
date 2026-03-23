@@ -1,4 +1,3 @@
-# app.py
 from __future__ import annotations
 
 from pathlib import Path
@@ -44,6 +43,59 @@ METRICS: Dict[str, Dict[str, str]] = {
     "successful_dribbles_p90": {"label": "Successful dribbles per 90", "y": "Successful dribbles per 90"},
     "tackles_won_p90": {"label": "Tackles won per 90", "y": "Tackles won per 90"},
     "touches_p90": {"label": "Touches per 90", "y": "Touches per 90"},
+}
+
+# ---------------------------------------------------------------------------
+# Position mapping derived from the combination report.
+# Keys are display_name values as they appear in the CSV.
+# Each player appears in exactly one position group.
+# ---------------------------------------------------------------------------
+POSITION_MAP: Dict[str, str] = {
+    # Goalkeeper  (excluded from team-avg position lines but included in team avg)
+    "Pepijn van de Merbel": "goalkeeper",  # excluded globally, kept for completeness
+
+    # Defenders
+    "Nathan de Groot":       "defender",
+    "Rami Akmum":            "defender",
+    "Tom van Grunsven":      "defender",
+    "Joël Fortes":           "defender",
+    "Stef Maas":             "defender",
+    "Mathijs Laros":         "defender",
+    "Sem Barglan":           "defender",
+    "Lars van Koeverden":    "defender",
+
+    # Midfielders
+    "Tim van Leeuwen":       "midfielder",
+    "Mathijs Laros":         "midfielder",   # can appear in both; last write wins — adjust if needed
+    "Kevin Felida":          "midfielder",
+    "Bilal Wang":            "midfielder",
+    "Ibrahim Boumassaoudi":  "midfielder",
+    "Joris de Vries":        "midfielder",
+    "Zakaria el Bakkali":    "midfielder",
+
+    # Attackers
+    "Cheick Elie Allachi":   "attacker",
+    "Kevin Monzialo":        "attacker",
+    "Dylan Verbeek":         "attacker",
+    "Ibrahim Boumassaoudi":  "attacker",   # dual role; attacker takes precedence if listed last
+    "Stef Komal Grach":      "attacker",
+    "Gilles Sillé":          "attacker",
+    "Emile Semedo":          "attacker",
+    "Joris de Vries":        "attacker",
+    "Rowin Wolters":         "attacker",
+}
+
+# Virtual "player" keys used for the aggregate lines
+AGG_TEAM     = "__agg_team__"
+AGG_ATT      = "__agg_att__"
+AGG_MID      = "__agg_mid__"
+AGG_DEF      = "__agg_def__"
+
+AGG_META = {
+    AGG_TEAM: {"label": "⬤ FC Den Bosch avg",   "position": None,       "dash": "dash"},
+    AGG_ATT:  {"label": "⬤ Attacking avg",        "position": "attacker", "dash": "dot"},
+    AGG_MID:  {"label": "⬤ Midfield avg",          "position": "midfielder","dash": "dashdot"},
+    AGG_DEF:  {"label": "⬤ Defensive avg",         "position": "defender", "dash": "longdash"},
 }
 
 
@@ -111,6 +163,11 @@ def init_state(players_internal: List[str], default_metric_key: str) -> None:
         if p not in players_internal:
             existing.pop(p, None)
 
+    # Init aggregate toggles
+    for key in AGG_META:
+        if f"agg__{key}" not in st.session_state:
+            st.session_state[f"agg__{key}"] = False
+
 
 def set_all(players_internal: List[str], value: bool) -> None:
     st.session_state["player_selected"] = {p: value for p in players_internal}
@@ -121,6 +178,10 @@ def set_all(players_internal: List[str], value: bool) -> None:
 def get_selected_players(players_internal: List[str]) -> List[str]:
     sel = st.session_state.get("player_selected", {})
     return [p for p in players_internal if sel.get(p, False)]
+
+
+def get_selected_aggregates() -> List[str]:
+    return [key for key in AGG_META if st.session_state.get(f"agg__{key}", False)]
 
 
 def build_player_anchors(player_df: pd.DataFrame, metric_col: str, window: int) -> pd.DataFrame:
@@ -165,6 +226,59 @@ def build_player_anchors(player_df: pd.DataFrame, metric_col: str, window: int) 
     out = pd.DataFrame(anchors, columns=["match_label", "y", "marker_size"])
     out = out.drop_duplicates(subset=["match_label"], keep="last").reset_index(drop=True)
     return out
+
+
+def build_aggregate_series(
+    df_filtered: pd.DataFrame,
+    metric_col: str,
+    match_order: List[str],
+    position_filter: str | None,
+    smooth: bool,
+    window: int,
+) -> pd.DataFrame:
+    """
+    Build an aggregate (mean across players) series per match.
+
+    If position_filter is None  → all players (team average).
+    Otherwise filter to the given position string from POSITION_MAP.
+
+    Returns DataFrame with columns: match_label, y, marker_size
+    """
+    agg = df_filtered.copy()
+
+    if position_filter is not None:
+        # map display_name → position; keep only matching rows
+        agg["_pos"] = agg["display_name"].map(POSITION_MAP)
+        agg = agg[agg["_pos"] == position_filter].copy()
+
+    if agg.empty:
+        return pd.DataFrame(columns=["match_label", "y", "marker_size"])
+
+    agg[metric_col] = pd.to_numeric(agg[metric_col], errors="coerce")
+
+    if smooth:
+        # Per match: mean across players, then apply the same window smoothing
+        per_match = (
+            agg.groupby(["match_ts", "event_id", "match_label"])[metric_col]
+            .mean()
+            .reset_index()
+            .sort_values(["match_ts", "event_id"])
+            .reset_index(drop=True)
+        )
+        # Reuse build_player_anchors logic on this aggregated single series
+        return build_player_anchors(per_match, metric_col, window=window)
+    else:
+        per_match = (
+            agg.groupby(["match_ts", "event_id", "match_label"])[metric_col]
+            .mean()
+            .reset_index()
+            .sort_values(["match_ts", "event_id"])
+            .reset_index(drop=True)
+        )
+        per_match["marker_size"] = 6
+        return per_match[["match_label", metric_col, "marker_size"]].rename(
+            columns={metric_col: "y"}
+        )
 
 
 def get_metric_options(df: pd.DataFrame) -> Tuple[List[str], Dict[str, str], str]:
@@ -279,6 +393,19 @@ def main() -> None:
             disabled=not st.session_state["smooth"],
         )
 
+        # ----------------------------------------------------------------
+        # Aggregate / average lines
+        # ----------------------------------------------------------------
+        st.divider()
+        st.subheader("Average lines (dashed)")
+        for agg_key, meta in AGG_META.items():
+            cb_key = f"agg__{agg_key}"
+            st.session_state[cb_key] = st.checkbox(
+                meta["label"],
+                value=bool(st.session_state.get(cb_key, False)),
+                key=f"cb_{cb_key}",
+            )
+
         st.divider()
         st.subheader("Select players")
 
@@ -311,61 +438,98 @@ def main() -> None:
     metric_key = st.session_state["metric_key"]
     min_minutes = float(st.session_state["min_minutes"])
     selected_internal = get_selected_players(internal_players)
+    selected_aggregates = get_selected_aggregates()
 
-    selected_labels = [internal_to_label.get(p, p) for p in selected_internal]
-    single_player_label = selected_labels[0] if len(selected_labels) == 1 else None
-
-    if not selected_internal:
-        st.warning("Select at least 1 player.")
+    if not selected_internal and not selected_aggregates:
+        st.warning("Select at least 1 player or average line.")
         st.stop()
 
     if metric_key not in df.columns:
         st.error(f"Metric column missing in CSV: {metric_key}")
         st.stop()
 
-    dff = df[df["display_name"].isin(selected_internal)].copy()
-    dff = dff[dff["minutes_played"] >= min_minutes].copy()
-    if dff.empty:
-        st.warning("No data after filtering (check minutes / players).")
-        st.stop()
+    # Base filtered frame (used for both individual and aggregate traces)
+    dff_all = df[df["minutes_played"] >= min_minutes].copy()
 
-    dff["player_label"] = dff["display_name"].map(internal_to_label).fillna(dff["display_name"])
-    dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
-    dff = dff.sort_values(["match_ts", "event_id", "player_label"])
+    # Individual player frame
+    dff = dff_all[dff_all["display_name"].isin(selected_internal)].copy() if selected_internal else pd.DataFrame()
+
+    smooth = bool(st.session_state["smooth"])
+    window = int(st.session_state["smooth_window"])
+    title_suffix = f" — smoothed (window={window})" if smooth else ""
 
     fig = go.Figure()
 
-    if st.session_state["smooth"]:
-        window = int(st.session_state["smooth_window"])
-        title_suffix = f" — smoothed (window={window})"
+    # ----------------------------------------------------------------
+    # Individual player traces
+    # ----------------------------------------------------------------
+    if not dff.empty:
+        dff["player_label"] = dff["display_name"].map(internal_to_label).fillna(dff["display_name"])
+        dff["match_label"] = pd.Categorical(dff["match_label"], categories=match_order, ordered=True)
+        dff = dff.sort_values(["match_ts", "event_id", "player_label"])
 
-        for player_label, g in dff.groupby("player_label", sort=True):
-            anchors = build_player_anchors(g, metric_key, window=window)
-            if anchors.empty:
-                continue
-            fig.add_trace(
-                go.Scatter(
-                    x=anchors["match_label"],
-                    y=anchors["y"],
-                    mode="lines+markers",
-                    name=player_label,
-                    marker=dict(size=anchors["marker_size"]),
-                    connectgaps=False,
+        if smooth:
+            for player_label, g in dff.groupby("player_label", sort=True):
+                anchors = build_player_anchors(g, metric_key, window=window)
+                if anchors.empty:
+                    continue
+                fig.add_trace(
+                    go.Scatter(
+                        x=anchors["match_label"],
+                        y=anchors["y"],
+                        mode="lines+markers",
+                        name=player_label,
+                        marker=dict(size=anchors["marker_size"]),
+                        connectgaps=False,
+                    )
                 )
-            )
-    else:
-        title_suffix = ""
-        for player_label, g in dff.groupby("player_label", sort=True):
-            fig.add_trace(
-                go.Scatter(
-                    x=g["match_label"],
-                    y=g[metric_key],
-                    mode="lines+markers",
-                    name=player_label,
-                    marker=dict(size=6),
-                    connectgaps=False,
+        else:
+            for player_label, g in dff.groupby("player_label", sort=True):
+                fig.add_trace(
+                    go.Scatter(
+                        x=g["match_label"],
+                        y=g[metric_key],
+                        mode="lines+markers",
+                        name=player_label,
+                        marker=dict(size=6),
+                        connectgaps=False,
+                    )
                 )
+
+    # ----------------------------------------------------------------
+    # Aggregate / average dashed traces
+    # ----------------------------------------------------------------
+    # Aggregate lines use the full min_minutes-filtered frame (all players)
+    for agg_key in selected_aggregates:
+        meta = AGG_META[agg_key]
+        pos_filter = meta["position"]  # None = team, else "attacker"/"midfielder"/"defender"
+
+        series = build_aggregate_series(
+            df_filtered=dff_all,
+            metric_col=metric_key,
+            match_order=match_order,
+            position_filter=pos_filter,
+            smooth=smooth,
+            window=window,
+        )
+        if series.empty:
+            continue
+
+        fig.add_trace(
+            go.Scatter(
+                x=series["match_label"],
+                y=series["y"],
+                mode="lines+markers",
+                name=meta["label"],
+                line=dict(dash=meta["dash"], width=2),
+                marker=dict(size=series["marker_size"], symbol="diamond"),
+                connectgaps=False,
             )
+        )
+
+    if len(fig.data) == 0:
+        st.warning("No data after filtering (check minutes / players).")
+        st.stop()
 
     fig.update_layout(
         height=740,
@@ -373,8 +537,7 @@ def main() -> None:
         xaxis_title="Match",
         yaxis_title=METRICS[metric_key]["y"],
         legend_title_text="Player",
-        showlegend=True,  # <-- force legend even if only 1 trace
-
+        showlegend=True,
         margin=dict(l=20, r=20, t=50, b=20),
     )
     fig.update_xaxes(
