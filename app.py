@@ -46,41 +46,101 @@ METRICS: Dict[str, Dict[str, str]] = {
 }
 
 # ---------------------------------------------------------------------------
-# Position mapping derived from the combination report.
-# Keys are display_name values as they appear in the CSV (visible in the
-# sidebar player list — typically surnames or short display names).
+# Per-match position rosters, derived directly from the combination report.
+#
+# Structure: event_id -> position -> list of display_name values (as shown
+# in the CSV sidebar).  Built by reading every combination line and recording
+# which players played which position in which match (event_id).
+#
+# Abbreviation key used in the source report:
+#   N. d. Groot      -> de Groot      (defender)
+#   R. Akmum         -> Akmum         (defender)
+#   T. v. Grunsven   -> van Grunsven  (defender)
+#   J. Fortes        -> Fortes        (defender)
+#   S. Maas          -> Maas          (defender)
+#   M. Laros         -> Laros         (defender / midfielder – per-match)
+#   S. Barglan       -> Barglan       (defender)
+#   L. v. Koeverden  -> van Koeverden (defender)
+#   T. v. Leeuwen    -> van Leeuwen   (midfielder)
+#   K. Felida        -> Felida        (midfielder)
+#   B. Wang          -> Wang          (midfielder)
+#   I. Boumassaoudi  -> Boumassaoudi  (midfielder / attacker – per-match)
+#   J. D. Vries      -> De Vries      (midfielder / attacker – per-match)
+#   Z. e. Bakkali    -> el Bakkali    (midfielder)
+#   C. E. Allachi    -> Allachi       (attacker)
+#   K. Monzialo      -> Monzialo      (attacker)
+#   D. Verbeek       -> Verbeek       (attacker)
+#   S. K. Grach      -> Grach         (attacker)
+#   G. Sillé         -> Sillé         (attacker)
+#   E. Semedo        -> Semedo        (attacker)
+#   R. Wolters       -> Wolters       (attacker)
 # ---------------------------------------------------------------------------
-POSITION_MAP: Dict[str, str] = {
-    # Defenders  (from VERDEDIGERS COMBINATIES)
-    "de Groot":       "defender",
-    "Akmum":          "defender",
-    "van Grunsven":   "defender",
-    "Fortes":         "defender",
-    "Maas":           "defender",
-    "Laros":          "defender",
-    "Barglan":        "defender",
-    "van Koeverden":  "defender",
-    "van Daalen":     "defender",
-    "Kuijpers":       "defender",
 
-    # Midfielders  (from MIDDENVELDERS COMBINATIES)
-    "van Leeuwen":    "midfielder",
-    "Felida":         "midfielder",
-    "Wang":           "midfielder",
-    "Boumassaoudi":   "midfielder",
-    "De Vries":       "midfielder",
-    "el Bakkali":     "midfielder",
-    "Djesi":          "midfielder",
-    "Boushaba":       "midfielder",
+def _roster(defenders: List[str], midfielders: List[str], attackers: List[str]) -> Dict[str, List[str]]:
+    return {"defender": defenders, "midfielder": midfielders, "attacker": attackers}
 
-    # Attackers  (from AANVALLERS COMBINATIES)
-    "Allachi":        "attacker",
-    "Monzialo":       "attacker",
-    "Verbeek":        "attacker",
-    "Grach":          "attacker",
-    "Sillé":          "attacker",
-    "Semedo":         "attacker",
-    "Wolters":        "attacker",
+
+# Each event_id maps to a dict with keys "defender", "midfielder", "attacker"
+MATCH_POSITION_ROSTERS: Dict[int, Dict[str, List[str]]] = {
+    # ── VERDEDIGERS source ──────────────────────────────────────────────────
+    # [12x] N. d. Groot - R. Akmum - T. v. Grunsven - J. Fortes
+    14056544: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["Wang","Felida","van Leeuwen"],          ["Sillé","Monzialo","Semedo"]),
+    14056508: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["Wang","Felida","van Leeuwen"],          ["de Groot","Monzialo","Semedo"]),  # ADO
+    14056502: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["Wang","Felida","van Leeuwen"],          ["Sillé","Monzialo","Semedo"]),
+    14056467: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Sillé","Monzialo","Semedo"]),
+    14056408: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Semedo"]),
+    14751816: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Wang"],           ["Allachi","Monzialo","Semedo"]),
+    14056450: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
+    14056447: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
+    14056422: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
+    14056419: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
+    14056357: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Verbeek"]),
+    14056321: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Verbeek"]),
+
+    # [6x] N. d. Groot - S. Maas - T. v. Grunsven - J. Fortes
+    14056658: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["De Vries","Grach","Monzialo"]),
+    14056654: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["De Vries","Grach","Monzialo"]),
+    14056625: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["De Vries","Grach","Monzialo"]),
+    14056627: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Semedo"]),
+    14056612: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","el Bakkali"],     ["Boumassaoudi","Monzialo","Semedo"]),
+    14056577: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Wang"],           ["Boumassaoudi","Monzialo","Verbeek"]),
+
+    # [2x] N. d. Groot - S. Maas - T. v. Grunsven - M. Laros - S. Barglan
+    14056499: _roster(["de Groot","Maas","van Grunsven","Laros","Barglan"], ["Boumassaoudi","Felida"],              ["De Vries","Grach","Sillé"]),
+    14056430: _roster(["de Groot","Maas","van Grunsven","Laros","Barglan"], ["Boumassaoudi","Felida","Wang"],       ["De Vries","Monzialo","Boumassaoudi"]),
+
+    # [2x] N. d. Groot - R. Akmum - S. Maas - J. Fortes
+    14056516: _roster(["de Groot","Akmum","Maas","Fortes"],               ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
+    14056348: _roster(["de Groot","Akmum","Maas","Fortes"],               ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Semedo"]),
+
+    # [2x] N. d. Groot - R. Akmum - S. Maas - S. Barglan
+    15392911: _roster(["de Groot","Akmum","Maas","Barglan"],              ["van Leeuwen","Laros","Felida"],         ["De Vries","Monzialo","Semedo"]),
+    14056489: _roster(["de Groot","Akmum","Maas","Barglan"],              ["van Leeuwen","Laros","Felida"],         ["Sillé","Monzialo","Semedo"]),
+
+    # [2x] N. d. Groot - S. Maas - L. v. Koeverden - J. Fortes
+    14056672: _roster(["de Groot","Maas","van Koeverden","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Barglan"]),
+    14056661: _roster(["de Groot","Maas","van Koeverden","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Semedo"]),
+
+    # [1x] N. d. Groot - R. Akmum - J. Fortes - M. Laros
+    14056402: _roster(["de Groot","Akmum","Fortes","Laros"],              ["Boumassaoudi","van Leeuwen","Felida"],  ["Allachi","Monzialo","Verbeek"]),
+
+    # [1x] N. d. Groot - S. Maas - L. v. Koeverden - J. Fortes - S. Barglan
+    14056344: _roster(["de Groot","Maas","van Koeverden","Fortes","Barglan"], ["Laros","Felida"],                   ["Semedo","Grach","De Vries"]),
+
+    # [1x] N. d. Groot - S. Maas - T. v. Grunsven - J. Fortes - S. Barglan
+    14056692: _roster(["de Groot","Maas","van Grunsven","Fortes","Barglan"], ["Laros","Felida"],                    ["De Vries","Grach","Monzialo"]),
+
+    # [1x] N. d. Groot - M. Laros - T. v. Grunsven - S. Barglan
+    14056580: _roster(["de Groot","Laros","van Grunsven","Barglan"],       ["van Leeuwen","Felida","el Bakkali"],   ["De Vries","Grach","Monzialo"]),
+
+    # [1x] N. d. Groot - R. Akmum - J. Fortes - S. Barglan
+    14056549: _roster(["de Groot","Akmum","Fortes","Barglan"],             ["De Vries","Laros","Felida"],           ["Monzialo","Grach","Semedo"]),
+
+    # [1x] N. d. Groot - R. Akmum - L. v. Koeverden - M. Laros
+    14056383: _roster(["de Groot","Akmum","van Koeverden","Laros"],        ["Boumassaoudi","van Leeuwen","Felida"], ["Allachi","Monzialo","Verbeek"]),
+
+    # [1x] M. Laros - R. Akmum - L. v. Koeverden - J. Fortes
+    14056366: _roster(["Laros","Akmum","van Koeverden","Fortes"],          ["van Leeuwen","Felida","el Bakkali"],   ["Boumassaoudi","Monzialo","Verbeek"]),
 }
 
 # Virtual "player" keys used for the aggregate lines
@@ -237,42 +297,51 @@ def build_aggregate_series(
     """
     Build an aggregate (mean across players) series per match.
 
-    If position_filter is None  → all players (team average).
-    Otherwise filter to the given position string from POSITION_MAP.
+    If position_filter is None  → team average: mean of ALL players that match.
+    Otherwise → per-match roster from MATCH_POSITION_ROSTERS: only the players
+    listed under that position for that specific event_id are averaged.
 
     Returns DataFrame with columns: match_label, y, marker_size
     """
-    agg = df_filtered.copy()
+    df_work = df_filtered.copy()
+    df_work[metric_col] = pd.to_numeric(df_work[metric_col], errors="coerce")
 
-    if position_filter is not None:
-        # map display_name → position; keep only matching rows
-        agg["_pos"] = agg["display_name"].map(POSITION_MAP)
-        agg = agg[agg["_pos"] == position_filter].copy()
+    rows = []
+    for (match_ts, event_id, match_label), grp in df_work.groupby(
+        ["match_ts", "event_id", "match_label"], sort=False
+    ):
+        if position_filter is None:
+            # Team average — all players in this match
+            vals = grp[metric_col].dropna()
+        else:
+            # Look up which display_names played this position this match
+            roster = MATCH_POSITION_ROSTERS.get(int(event_id), {})
+            names_in_pos = roster.get(position_filter, [])
+            if not names_in_pos:
+                continue
+            vals = grp.loc[grp["display_name"].isin(names_in_pos), metric_col].dropna()
 
-    if agg.empty:
+        if vals.empty:
+            continue
+        rows.append({
+            "match_ts":    match_ts,
+            "event_id":    event_id,
+            "match_label": match_label,
+            metric_col:    float(vals.mean()),
+        })
+
+    if not rows:
         return pd.DataFrame(columns=["match_label", "y", "marker_size"])
 
-    agg[metric_col] = pd.to_numeric(agg[metric_col], errors="coerce")
+    per_match = (
+        pd.DataFrame(rows)
+        .sort_values(["match_ts", "event_id"])
+        .reset_index(drop=True)
+    )
 
     if smooth:
-        # Per match: mean across players, then apply the same window smoothing
-        per_match = (
-            agg.groupby(["match_ts", "event_id", "match_label"])[metric_col]
-            .mean()
-            .reset_index()
-            .sort_values(["match_ts", "event_id"])
-            .reset_index(drop=True)
-        )
-        # Reuse build_player_anchors logic on this aggregated single series
         return build_player_anchors(per_match, metric_col, window=window)
     else:
-        per_match = (
-            agg.groupby(["match_ts", "event_id", "match_label"])[metric_col]
-            .mean()
-            .reset_index()
-            .sort_values(["match_ts", "event_id"])
-            .reset_index(drop=True)
-        )
         per_match["marker_size"] = 6
         return per_match[["match_label", metric_col, "marker_size"]].rename(
             columns={metric_col: "y"}
