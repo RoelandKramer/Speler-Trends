@@ -47,42 +47,40 @@ METRICS: Dict[str, Dict[str, str]] = {
 
 # ---------------------------------------------------------------------------
 # Position mapping derived from the combination report.
-# Keys are display_name values as they appear in the CSV.
-# Each player appears in exactly one position group.
+# Keys are display_name values as they appear in the CSV (visible in the
+# sidebar player list — typically surnames or short display names).
 # ---------------------------------------------------------------------------
 POSITION_MAP: Dict[str, str] = {
-    # Goalkeeper  (excluded from team-avg position lines but included in team avg)
-    "Pepijn van de Merbel": "goalkeeper",  # excluded globally, kept for completeness
+    # Defenders  (from VERDEDIGERS COMBINATIES)
+    "de Groot":       "defender",
+    "Akmum":          "defender",
+    "van Grunsven":   "defender",
+    "Fortes":         "defender",
+    "Maas":           "defender",
+    "Laros":          "defender",
+    "Barglan":        "defender",
+    "van Koeverden":  "defender",
+    "van Daalen":     "defender",
+    "Kuijpers":       "defender",
 
-    # Defenders
-    "Nathan de Groot":       "defender",
-    "Rami Akmum":            "defender",
-    "Tom van Grunsven":      "defender",
-    "Joël Fortes":           "defender",
-    "Stef Maas":             "defender",
-    "Mathijs Laros":         "defender",
-    "Sem Barglan":           "defender",
-    "Lars van Koeverden":    "defender",
+    # Midfielders  (from MIDDENVELDERS COMBINATIES)
+    "van Leeuwen":    "midfielder",
+    "Felida":         "midfielder",
+    "Wang":           "midfielder",
+    "Boumassaoudi":   "midfielder",
+    "De Vries":       "midfielder",
+    "el Bakkali":     "midfielder",
+    "Djesi":          "midfielder",
+    "Boushaba":       "midfielder",
 
-    # Midfielders
-    "Tim van Leeuwen":       "midfielder",
-    "Mathijs Laros":         "midfielder",   # can appear in both; last write wins — adjust if needed
-    "Kevin Felida":          "midfielder",
-    "Bilal Wang":            "midfielder",
-    "Ibrahim Boumassaoudi":  "midfielder",
-    "Joris de Vries":        "midfielder",
-    "Zakaria el Bakkali":    "midfielder",
-
-    # Attackers
-    "Cheick Elie Allachi":   "attacker",
-    "Kevin Monzialo":        "attacker",
-    "Dylan Verbeek":         "attacker",
-    "Ibrahim Boumassaoudi":  "attacker",   # dual role; attacker takes precedence if listed last
-    "Stef Komal Grach":      "attacker",
-    "Gilles Sillé":          "attacker",
-    "Emile Semedo":          "attacker",
-    "Joris de Vries":        "attacker",
-    "Rowin Wolters":         "attacker",
+    # Attackers  (from AANVALLERS COMBINATIES)
+    "Allachi":        "attacker",
+    "Monzialo":       "attacker",
+    "Verbeek":        "attacker",
+    "Grach":          "attacker",
+    "Sillé":          "attacker",
+    "Semedo":         "attacker",
+    "Wolters":        "attacker",
 }
 
 # Virtual "player" keys used for the aggregate lines
