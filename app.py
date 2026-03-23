@@ -80,67 +80,94 @@ def _roster(defenders: List[str], midfielders: List[str], attackers: List[str]) 
     return {"defender": defenders, "midfielder": midfielders, "attacker": attackers}
 
 
+# Exact display_name values from the CSV (format: "A. Surname - shirtnumber")
+_GK  = "P. v. d. Merbel - 1"   # excluded globally but listed for reference
+_DEG = "N. d. Groot - 5"
+_AKM = "R. Akmum - 27"
+_VGR = "T. v. Grunsven - 4"
+_FOR = "J. Fortes - 22"
+_MAA = "S. Maas - 3"
+_LAR = "M. Laros - 33"
+_BAR = "S. Barglan - 47"
+_VKO = "L. v. Koeverden - 42"
+_VLE = "T. v. Leeuwen - 10"
+_FEL = "K. Felida - 6"
+_WAN = "B. Wang - 16"
+_BOU = "I. Boumassaoudi - 40"
+_DVR = "J. D. Vries - 15"
+_BAK = "Z. e. Bakkali - 26"
+_ALL = "C. E. Allachi - 51"
+_MON = "K. Monzialo - 8"
+_VER = "D. Verbeek - 11"
+_GRA = "S. K. Grach - 9"
+_SIL = "G. Sillé - 7"
+_SEM = "E. Semedo - 17"
+_WOL = "R. Wolters - 39"
+_DJE = "B. Djesi - 38"
+_BOU2= "A. Boushaba - 46"
+_KUI = "D. Kuijpers - 19"
+_VDA = "S. v. Daalen - 51"
+
 # Each event_id maps to a dict with keys "defender", "midfielder", "attacker"
 MATCH_POSITION_ROSTERS: Dict[int, Dict[str, List[str]]] = {
-    # ── VERDEDIGERS source ──────────────────────────────────────────────────
     # [12x] N. d. Groot - R. Akmum - T. v. Grunsven - J. Fortes
-    14056544: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["Wang","Felida","van Leeuwen"],          ["Sillé","Monzialo","Semedo"]),
-    14056508: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["Wang","Felida","van Leeuwen"],          ["de Groot","Monzialo","Semedo"]),  # ADO
-    14056502: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["Wang","Felida","van Leeuwen"],          ["Sillé","Monzialo","Semedo"]),
-    14056467: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Sillé","Monzialo","Semedo"]),
-    14056408: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Semedo"]),
-    14751816: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Wang"],           ["Allachi","Monzialo","Semedo"]),
-    14056450: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
-    14056447: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
-    14056422: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
-    14056419: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
-    14056357: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Verbeek"]),
-    14056321: _roster(["de Groot","Akmum","van Grunsven","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Verbeek"]),
+    14056544: _roster([_DEG,_AKM,_VGR,_FOR],       [_WAN,_FEL,_VLE],       [_SIL,_MON,_SEM]),
+    14056508: _roster([_DEG,_AKM,_VGR,_FOR],       [_WAN,_FEL,_VLE],       [_SIL,_MON,_SEM]),
+    14056502: _roster([_DEG,_AKM,_VGR,_FOR],       [_WAN,_FEL,_VLE],       [_SIL,_MON,_SEM]),
+    14056467: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_SIL,_MON,_SEM]),
+    14056408: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_ALL,_MON,_SEM]),
+    14751816: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_WAN],       [_ALL,_MON,_SEM]),
+    14056450: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_ALL,_MON,_VER]),
+    14056447: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_ALL,_MON,_VER]),
+    14056422: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_ALL,_MON,_VER]),
+    14056419: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_ALL,_MON,_VER]),
+    14056357: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_BOU,_MON,_VER]),
+    14056321: _roster([_DEG,_AKM,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_BOU,_MON,_VER]),
 
     # [6x] N. d. Groot - S. Maas - T. v. Grunsven - J. Fortes
-    14056658: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["De Vries","Grach","Monzialo"]),
-    14056654: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["De Vries","Grach","Monzialo"]),
-    14056625: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["De Vries","Grach","Monzialo"]),
-    14056627: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Semedo"]),
-    14056612: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","el Bakkali"],     ["Boumassaoudi","Monzialo","Semedo"]),
-    14056577: _roster(["de Groot","Maas","van Grunsven","Fortes"],        ["van Leeuwen","Laros","Wang"],           ["Boumassaoudi","Monzialo","Verbeek"]),
+    14056658: _roster([_DEG,_MAA,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_DVR,_GRA,_MON]),
+    14056654: _roster([_DEG,_MAA,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_DVR,_GRA,_MON]),
+    14056625: _roster([_DEG,_MAA,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_DVR,_GRA,_MON]),
+    14056627: _roster([_DEG,_MAA,_VGR,_FOR],       [_VLE,_LAR,_FEL],       [_BOU,_MON,_SEM]),
+    14056612: _roster([_DEG,_MAA,_VGR,_FOR],       [_VLE,_LAR,_BAK],       [_BOU,_MON,_SEM]),
+    14056577: _roster([_DEG,_MAA,_VGR,_FOR],       [_VLE,_LAR,_WAN],       [_BOU,_MON,_VER]),
 
     # [2x] N. d. Groot - S. Maas - T. v. Grunsven - M. Laros - S. Barglan
-    14056499: _roster(["de Groot","Maas","van Grunsven","Laros","Barglan"], ["Boumassaoudi","Felida"],              ["De Vries","Grach","Sillé"]),
-    14056430: _roster(["de Groot","Maas","van Grunsven","Laros","Barglan"], ["Boumassaoudi","Felida","Wang"],       ["De Vries","Monzialo","Boumassaoudi"]),
+    14056499: _roster([_DEG,_MAA,_VGR,_LAR,_BAR],  [_BOU,_FEL],            [_DVR,_GRA,_SIL]),
+    14056430: _roster([_DEG,_MAA,_VGR,_LAR,_BAR],  [_BOU,_FEL,_WAN],       [_DVR,_MON,_BOU]),
 
     # [2x] N. d. Groot - R. Akmum - S. Maas - J. Fortes
-    14056516: _roster(["de Groot","Akmum","Maas","Fortes"],               ["van Leeuwen","Laros","Felida"],         ["Allachi","Monzialo","Verbeek"]),
-    14056348: _roster(["de Groot","Akmum","Maas","Fortes"],               ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Semedo"]),
+    14056516: _roster([_DEG,_AKM,_MAA,_FOR],       [_VLE,_LAR,_FEL],       [_ALL,_MON,_VER]),
+    14056348: _roster([_DEG,_AKM,_MAA,_FOR],       [_VLE,_LAR,_FEL],       [_BOU,_MON,_SEM]),
 
     # [2x] N. d. Groot - R. Akmum - S. Maas - S. Barglan
-    15392911: _roster(["de Groot","Akmum","Maas","Barglan"],              ["van Leeuwen","Laros","Felida"],         ["De Vries","Monzialo","Semedo"]),
-    14056489: _roster(["de Groot","Akmum","Maas","Barglan"],              ["van Leeuwen","Laros","Felida"],         ["Sillé","Monzialo","Semedo"]),
+    15392911: _roster([_DEG,_AKM,_MAA,_BAR],       [_VLE,_LAR,_FEL],       [_DVR,_MON,_SEM]),
+    14056489: _roster([_DEG,_AKM,_MAA,_BAR],       [_VLE,_LAR,_FEL],       [_SIL,_MON,_SEM]),
 
     # [2x] N. d. Groot - S. Maas - L. v. Koeverden - J. Fortes
-    14056672: _roster(["de Groot","Maas","van Koeverden","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Barglan"]),
-    14056661: _roster(["de Groot","Maas","van Koeverden","Fortes"],       ["van Leeuwen","Laros","Felida"],         ["Boumassaoudi","Monzialo","Semedo"]),
+    14056672: _roster([_DEG,_MAA,_VKO,_FOR],       [_VLE,_LAR,_FEL],       [_BOU,_MON,_BAR]),
+    14056661: _roster([_DEG,_MAA,_VKO,_FOR],       [_VLE,_LAR,_FEL],       [_BOU,_MON,_SEM]),
 
     # [1x] N. d. Groot - R. Akmum - J. Fortes - M. Laros
-    14056402: _roster(["de Groot","Akmum","Fortes","Laros"],              ["Boumassaoudi","van Leeuwen","Felida"],  ["Allachi","Monzialo","Verbeek"]),
+    14056402: _roster([_DEG,_AKM,_FOR,_LAR],       [_BOU,_VLE,_FEL],       [_ALL,_MON,_VER]),
 
     # [1x] N. d. Groot - S. Maas - L. v. Koeverden - J. Fortes - S. Barglan
-    14056344: _roster(["de Groot","Maas","van Koeverden","Fortes","Barglan"], ["Laros","Felida"],                   ["Semedo","Grach","De Vries"]),
+    14056344: _roster([_DEG,_MAA,_VKO,_FOR,_BAR],  [_LAR,_FEL],            [_SEM,_GRA,_DVR]),
 
     # [1x] N. d. Groot - S. Maas - T. v. Grunsven - J. Fortes - S. Barglan
-    14056692: _roster(["de Groot","Maas","van Grunsven","Fortes","Barglan"], ["Laros","Felida"],                    ["De Vries","Grach","Monzialo"]),
+    14056692: _roster([_DEG,_MAA,_VGR,_FOR,_BAR],  [_LAR,_FEL],            [_DVR,_GRA,_MON]),
 
     # [1x] N. d. Groot - M. Laros - T. v. Grunsven - S. Barglan
-    14056580: _roster(["de Groot","Laros","van Grunsven","Barglan"],       ["van Leeuwen","Felida","el Bakkali"],   ["De Vries","Grach","Monzialo"]),
+    14056580: _roster([_DEG,_LAR,_VGR,_BAR],       [_VLE,_FEL,_BAK],       [_DVR,_GRA,_MON]),
 
     # [1x] N. d. Groot - R. Akmum - J. Fortes - S. Barglan
-    14056549: _roster(["de Groot","Akmum","Fortes","Barglan"],             ["De Vries","Laros","Felida"],           ["Monzialo","Grach","Semedo"]),
+    14056549: _roster([_DEG,_AKM,_FOR,_BAR],       [_DVR,_LAR,_FEL],       [_MON,_GRA,_SEM]),
 
     # [1x] N. d. Groot - R. Akmum - L. v. Koeverden - M. Laros
-    14056383: _roster(["de Groot","Akmum","van Koeverden","Laros"],        ["Boumassaoudi","van Leeuwen","Felida"], ["Allachi","Monzialo","Verbeek"]),
+    14056383: _roster([_DEG,_AKM,_VKO,_LAR],       [_BOU,_VLE,_FEL],       [_ALL,_MON,_VER]),
 
     # [1x] M. Laros - R. Akmum - L. v. Koeverden - J. Fortes
-    14056366: _roster(["Laros","Akmum","van Koeverden","Fortes"],          ["van Leeuwen","Felida","el Bakkali"],   ["Boumassaoudi","Monzialo","Verbeek"]),
+    14056366: _roster([_LAR,_AKM,_VKO,_FOR],       [_VLE,_FEL,_BAK],       [_BOU,_MON,_VER]),
 }
 
 # Virtual "player" keys used for the aggregate lines
@@ -385,30 +412,6 @@ def main() -> None:
     if df.empty:
         st.error("CSV loaded but contains no rows (after filtering).")
         st.stop()
-
-    # ── TEMPORARY DEBUG EXPANDER — remove once positions work ──────────────
-    with st.expander("🔧 Debug: display_name values & roster matching", expanded=False):
-        st.markdown("**All `display_name` values in CSV:**")
-        st.write(sorted(df["display_name"].unique().tolist()))
-
-        roster_names_flat = {
-            "de Groot","Akmum","van Grunsven","Fortes","Maas","Laros","Barglan","van Koeverden",
-            "Wang","Felida","van Leeuwen","Boumassaoudi","De Vries","el Bakkali",
-            "Sillé","Semedo","Allachi","Monzialo","Verbeek","Grach","Wolters",
-        }
-        csv_names = set(df["display_name"].unique())
-        unmatched = roster_names_flat - csv_names
-        matched = roster_names_flat & csv_names
-        st.markdown("**Roster names that MATCH a display_name in CSV:**")
-        st.write(sorted(matched))
-        st.markdown("**Roster names with NO match — these break the position lines:**")
-        st.write(sorted(unmatched) if unmatched else "✅ All match!")
-
-        sample_id = 14056658
-        sample = df[df["event_id"] == sample_id]
-        st.markdown(f"**display_names in match event_id `{sample_id}`:**")
-        st.write(sorted(sample["display_name"].unique().tolist()))
-    # ── END DEBUG ───────────────────────────────────────────────────────────
 
     metric_labels, label_to_key, default_metric_key = get_metric_options(df)
 
