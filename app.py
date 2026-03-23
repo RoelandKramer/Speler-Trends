@@ -312,6 +312,9 @@ def main() -> None:
     min_minutes = float(st.session_state["min_minutes"])
     selected_internal = get_selected_players(internal_players)
 
+    selected_labels = [internal_to_label.get(p, p) for p in selected_internal]
+    single_player_label = selected_labels[0] if len(selected_labels) == 1 else None
+
     if not selected_internal:
         st.warning("Select at least 1 player.")
         st.stop()
@@ -370,6 +373,8 @@ def main() -> None:
         xaxis_title="Match",
         yaxis_title=METRICS[metric_key]["y"],
         legend_title_text="Player",
+        showlegend=True,  # <-- force legend even if only 1 trace
+
         margin=dict(l=20, r=20, t=50, b=20),
     )
     fig.update_xaxes(
